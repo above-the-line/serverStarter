@@ -1,7 +1,3 @@
-# https://github.com/nginx-proxy/nginx-proxy
-# https://github.com/Kritner/KritnerWebsite/blob/master/.docker/docker-compose.yml
-# https://github.com/Einsteinish/Docker-compose-Nginx-Reverse-Proxy
-
 # This image automatically renews a free SSL certificate every 6 months.
 # It is used in conjunction with the reverse proxy image
 # This service will create the SSH cert
@@ -56,17 +52,12 @@
 # WE DONT MAP PORTS 80 (HTTP) and 443 (HTTPS) BECAUSE THIS IS JUST
 # USED FOR THE AUTO SSL RENEW
 
-version: "3.6"
+version: "3"
 services:
   # SSL CERT CONFIGURATION OPTIONS
   letsencrypt:
     image: linuxserver/letsencrypt
-    ports:
-      - "80:80"
-      - "443:443"
     container_name: letsencrypt
-    networks:
-      - frontend
     environment:
       - PUID=0
       - PGID=0
@@ -78,13 +69,5 @@ services:
       - EMAIL=play.right.productions@gmail.com
       - DHLEVEL=4096
     volumes:
-      # used to have a copy of config on the DOCKER HOST, can mod from there
-      - ./config:/config
-      # the actual configuration file to use for the reverse proxy (located in current repo directory)
-      - ./nginx.conf:/config/nginx/site-confs/default
-      # overrides for ssl conf from base image
-      - ./ssl.conf:/config/nginx/ssl.conf
+      - /docker/server/ssh:/config
     restart: unless-stopped
-
-networks:
-  frontend:
