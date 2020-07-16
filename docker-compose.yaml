@@ -1,0 +1,90 @@
+# https://github.com/nginx-proxy/nginx-proxy
+# https://github.com/Kritner/KritnerWebsite/blob/master/.docker/docker-compose.yml
+# https://github.com/Einsteinish/Docker-compose-Nginx-Reverse-Proxy
+
+# This image automatically renews a free SSL certificate every 6 months.
+# It is used in conjunction with the reverse proxy image
+# This service will create the SSH cert
+# That cert will then be copied into its sister service
+#
+#
+# STEPS TO DEPLOY: RUN THIS IMAGE FIRST
+# 0. register a domain with one of the approved registrars
+#     https://docs.linuxserver.io/images/docker-letsencrypt
+#     (e.g. Route53)
+# 1. add a record in your DNS pointing to your server
+# 2. create an IAM role (or other) role that Boto3 with
+#    necessary permissions e.g. Route53FullAccess
+#    note the key/password
+#    aws_access_key_id=AKIAIOSFODNN7EXAMPLE
+#    aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+# 2. fill in the config details that will be submitted
+#    during the SSL cert request
+# 3. specify an empty folder location for the volume mount
+#    (i.e. /path/to/my/folder/thats/empty/that/will/be/populated/with/files)
+# 4. run docker-compose file on the server and then navigate to that folder location
+#    docker-compose up
+# 5. inside you will see /dns-config  navigate to to the ini file of the relevant approved registrar
+#    overwrite the credentials with the keys that you made
+# 6. docker restart letsencrypt
+# 7. and it should be done (you can check docker logs letsencrypt to be sure)
+# 8. NOTE: /docker/server/ssh/log/php/error.log file will bloat overtime because
+#    of this error:
+#    https://support.plesk.com/hc/en-us/articles/115000198774--BUG-PHP-FPM-configuration-fails-after-upgrading-PHP-to-7-x-on-a-Plesk-server-etc-php-fpm-d-www-conf-1-value-is-NULL-for-a-ZEND-INI-PARSER-ENTRY
+#    edit this file /docker/server/ssh/php/www2.conf if you want to try fix it
+# 9. Leave the container for autorenew
+
+# NOTES
+# https://docs.linuxserver.io/images/docker-letsencrypt
+# Letsencrypt sets up an Nginx webserver and reverse proxy with php
+# support and a built-in letsencrypt client that automates free SSL
+# server certificate generation and renewal processes. It also contains
+# fail2ban for intrusion prevention.
+
+# When using volumes (-v flags), permissions issues can arise between
+# the host OS and the container, we avoid this issue by allowing you
+# to specify the user PUID and group PGID.
+# Ensure any volume directories on the host are owned by the same user
+#  you specify and any permissions issues will vanish like magic.
+
+# In this instance PUID=1000 and PGID=1000,
+
+# to find yours use  "  id <username>  " in the terminal
+
+# i.e.   id root ==> GUID=0  PUID=0
+
+# WE DONT MAP PORTS 80 (HTTP) and 443 (HTTPS) BECAUSE THIS IS JUST
+# USED FOR THE AUTO SSL RENEW
+
+version: "3.6"
+services:
+  # SSL CERT CONFIGURATION OPTIONS
+  letsencrypt:
+    image: linuxserver/letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+    container_name: letsencrypt
+    networks:
+      - frontend
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Europe/London #TIME ZONE
+      - URL=air-controller.com
+      - SUBDOMAINS=wildcard,
+      - VALIDATION=dns #DNS records on Route53 or other approved partner will verify
+      - DNSPLUGIN=route53 #approved partner
+      - EMAIL=play.right.productions@gmail.com
+      - DHLEVEL=4096
+    volumes:
+      # used to have a copy of config on the DOCKER HOST, can mod from there
+      - ./config:/config
+      # the actual configuration file to use for the reverse proxy (located in current repo directory)
+      - ./nginx.conf:/config/nginx/site-confs/default
+      # overrides for ssl conf from base image
+      - ./ssl.conf:/config/nginx/ssl.conf
+    restart: unless-stopped
+
+networks:
+  frontend:
